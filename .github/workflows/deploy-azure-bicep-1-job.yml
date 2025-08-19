@@ -1,10 +1,10 @@
-name: Deploy-Azure-Bicep-1-job
+name: Deploy-Azure-Bicep-and-App-Code
 
 # Controls when the workflow will run
 on:
   # Triggers the workflow on push or pull request events but only for the main branch
-#  push:
-#    branches: [ main ]
+  # push:
+  #   branches: [ main ]
   pull_request:
     branches: [ main ]
 
@@ -13,7 +13,7 @@ on:
 
 env:
   RESOURCE_GROUP: rg-bicep-github-actions-29
-  WEBAPP_NAME: bicep-029
+  WEBAPP_NAME: bicep-029 # <-- IMPORTANTE: Verifique se este é o nome correto do seu Web App no Azure!
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
@@ -21,43 +21,56 @@ jobs:
   preview-and-deploy:
     # The type of runner that the job will run on
     runs-on: ubuntu-latest
-
+    
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v2
+      # 1. Baixa o código do seu repositório
+      - name: Checks-out your repository
+        uses: actions/checkout@v2
 
+      # 2. Faz login no Azure
       - name: Login to Azure
         uses: Azure/login@v1.4.3
         with:
-          # Paste output of `az ad sp create-for-rbac` as value of secret variable: AZURE_CREDENTIALS
+          # Cole a saída de `az ad sp create-for-rbac` como o valor da secret: AZURE_CREDENTIALS
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
+      # 3. Cria o Grupo de Recursos (se não existir)
       - name: Create Azure Resource Group
         uses: Azure/cli@v1.0.6
         with:
-          # Azure CLI version to be used to execute the script. If not provided, latest version is used
-          # azcliversion: 2.34.1 # optional, default is agentazcliversion
-          # Specify the script here
           inlineScript: |
             az version
             az group create -n $RESOURCE_GROUP -l westeurope
 
-      - name: Preview Changes fron Bicep
+      # 4. Previsualiza as mudanças da infraestrutura com Bicep
+      - name: Preview Changes from Bicep
         uses: Azure/deployment-what-if-action@v1.0.0
         with:
-          subscription: ${{ secrets.SUBSCRIPTION_ID  }} # Subscription ID
-          resourceGroup: $RESOURCE_GROUP # Resource group name
-          templateFile: 01-bicep-webapp/webapp-linux.bicep # ARM template or Bicep file
-          # parametersFile: # optional # Parameters file for the ARM template or Bicep
-          # Additional parameters to be applied on the ARM template or Bicep. Multiple parameters should be separated by spaces.
-          additionalParameters: webAppName=$WEBAPP_NAME # optional
-          
+          subscription: ${{ secrets.SUBSCRIPTION_ID  }}
+          resourceGroup: $RESOURCE_GROUP
+          templateFile: 01-bicep-webapp/webapp-linux.bicep
+          additionalParameters: webAppName=$WEBAPP_NAME
+
+      # 5. Implanta a infraestrutura com Bicep
       - name: Deploy Bicep to Azure
         uses: azure/arm-deploy@v1
         with:
           subscriptionId: ${{ secrets.SUBSCRIPTION_ID }}
-          resourceGroupName: ${{ env.RESOURCE_GROUP }} # $RESOURCE_GROUP
+          resourceGroupName: ${{ env.RESOURCE_GROUP }}
           template: 01-bicep-webapp/webapp-linux.bicep
           parameters: webAppName=${{ env.WEBAPP_NAME }}
           failOnStdErr: false
+
+      # 6. !!! ETAPA ADICIONADA: Implanta o código da aplicação no Web App !!!
+      - name: Deploy application code to Azure WebApp
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: ${{ env.WEBAPP_NAME }}
+          slot-name: 'production' # Use 'production' ou o nome do seu slot de implantação
+          
+          # Caminho para a pasta que contém o código da aplicação.
+          # '.' significa a raiz do repositório.
+          # Se você tiver um passo de build que gera os arquivos em uma pasta como 'dist' ou 'build',
+          # mude para: package: './dist' ou package: '${{ github.workspace }}/build'
+          package: .
