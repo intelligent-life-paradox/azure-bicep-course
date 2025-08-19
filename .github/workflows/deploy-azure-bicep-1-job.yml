@@ -62,15 +62,3 @@ jobs:
           parameters: webAppName=${{ env.WEBAPP_NAME }}
           failOnStdErr: false
 
-      # 6. !!! ETAPA ADICIONADA: Implanta o código da aplicação no Web App !!!
-      - name: Deploy application code to Azure WebApp
-        uses: azure/webapps-deploy@v2
-        with:
-          app-name: ${{ env.WEBAPP_NAME }}
-          slot-name: 'production' # Use 'production' ou o nome do seu slot de implantação
-          
-          # Caminho para a pasta que contém o código da aplicação.
-          # '.' significa a raiz do repositório.
-          # Se você tiver um passo de build que gera os arquivos em uma pasta como 'dist' ou 'build',
-          # mude para: package: './dist' ou package: '${{ github.workspace }}/build'
-          package: .
